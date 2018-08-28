@@ -1,0 +1,434 @@
+package com.jedk1.jedcore.ability.earthbending;
+
+import com.jedk1.jedcore.JedCore;
+import com.jedk1.jedcore.collision.AABB;
+import com.jedk1.jedcore.collision.CollisionDetector;
+import com.jedk1.jedcore.collision.CollisionUtil;
+import com.jedk1.jedcore.configuration.JedCoreConfig;
+import com.jedk1.jedcore.util.BlockUtil;
+import com.jedk1.jedcore.util.TempFallingBlock;
+import com.jedk1.jedcore.util.VersionUtil;
+import com.projectkorra.projectkorra.GeneralMethods;
+import com.projectkorra.projectkorra.ability.AddonAbility;
+import com.projectkorra.projectkorra.ability.EarthAbility;
+import com.projectkorra.projectkorra.ability.util.Collision;
+import com.projectkorra.projectkorra.util.DamageHandler;
+import com.projectkorra.projectkorra.util.ParticleEffect;
+import com.projectkorra.projectkorra.util.TempBlock;
+import org.bukkit.Bukkit;
+import org.bukkit.Location;
+import org.bukkit.Material;
+import org.bukkit.block.Block;
+import org.bukkit.block.BlockFace;
+import org.bukkit.configuration.ConfigurationSection;
+import org.bukkit.entity.FallingBlock;
+import org.bukkit.entity.LivingEntity;
+import org.bukkit.entity.Player;
+import org.bukkit.util.Vector;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.stream.Collectors;
+
+public class EarthShardMasterDeluxeEditon extends EarthAbility implements AddonAbility
+{
+    public static int range;
+    public static int abilityRange;
+
+    public static double normalDmg;
+    public static double metalDmg;
+
+    public static int maxShards;
+    public static long cooldown;
+
+    private boolean isThrown = false;
+    private Location origin;
+    private Location targetedBlock;
+    private double abilityCollisionRadius;
+    private double entityCollisionRadius;
+
+    private List<TempBlock> tblockTracker = new ArrayList<>();
+    private List<TempBlock> readyBlocksTracker = new ArrayList<>();
+    private List<TempFallingBlock> fallingBlocks = new ArrayList<>();
+
+    public EarthShardMasterDeluxeEditon(Player player)
+    {
+        super(player);
+
+        if (!bPlayer.canBend(this))
+        {
+            return;
+        }
+
+        if (hasAbility(player, EarthShardMasterDeluxeEditon.class))
+        {
+            for (EarthShardMasterDeluxeEditon es : EarthShardMasterDeluxeEditon.getAbilities(player, EarthShardMasterDeluxeEditon.class))
+            {
+                if (es.isThrown && System.currentTimeMillis() - es.getStartTime() >= 20000)
+                {
+                    // Remove the old instance because it got into a broken state.
+                    // This shouldn't affect normal gameplay because the cooldown is long enough that the
+                    // shards should have already hit their target.
+                    es.remove();
+                } else
+                {
+                    es.select();
+                    return;
+                }
+            }
+        }
+
+        setFields();
+        origin = player.getLocation().clone();
+        raiseEarthBlock(getEarthSourceBlock(range));
+        start();
+    }
+
+    public void setFields()
+    {
+        ConfigurationSection config = JedCoreConfig.getConfig(this.player);
+
+        range = config.getInt("Abilities.Earth.EarthShard.PrepareRange");
+        abilityRange = config.getInt("Abilities.Earth.EarthShard.AbilityRange");
+        normalDmg = config.getDouble("Abilities.Earth.EarthShard.Damage.Normal");
+        metalDmg = config.getDouble("Abilities.Earth.EarthShard.Damage.Metal");
+        maxShards = config.getInt("Abilities.Earth.EarthShard.MaxShards");
+        cooldown = config.getLong("Abilities.Earth.EarthShard.Cooldown");
+        abilityCollisionRadius = config.getDouble("Abilities.Earth.EarthShard.AbilityCollisionRadius");
+        entityCollisionRadius = config.getDouble("Abilities.Earth.EarthShard.EntityCollisionRadius");
+    }
+
+    public void select()
+    {
+        raiseEarthBlock(getEarthSourceBlock(range));
+    }
+
+    @SuppressWarnings("deprecation")
+    public void raiseEarthBlock(Block block)
+    {
+        if (block == null)
+        {
+            return;
+        }
+
+        targetedBlock = block.getLocation();
+
+        if (tblockTracker.size() >= maxShards)
+        {
+            return;
+        }
+
+        Vector blockVector = block.getLocation().toVector().toBlockVector().setY(0);
+
+        // Don't select from locations that already have an EarthShard block.
+        for (TempBlock tempBlock : tblockTracker)
+        {
+            if (tempBlock.getLocation().getWorld() != block.getWorld())
+            {
+                continue;
+            }
+
+            Vector tempBlockVector = tempBlock.getLocation().toVector().toBlockVector().setY(0);
+
+            if (tempBlockVector.equals(blockVector))
+            {
+                return;
+            }
+        }
+
+        if (isEarthbendable(block))
+        {
+            if (isMetal(block))
+            {
+                playMetalbendingSound(block.getLocation());
+            } else
+            {
+                ParticleEffect.BLOCK_CRACK.display(new ParticleEffect.BlockData(block.getType(), block.getData()), 0.5F, 0, 0.5F, 0, 30, block.getLocation().add(0.5, 1, 0.5), 20);
+                playEarthbendingSound(block.getLocation());
+            }
+
+            Material material = getCorrectType(block);
+            byte data = block.getData();
+
+            if (VersionUtil.isPassiveSand(block))
+            {
+                VersionUtil.revertSand(block);
+            }
+
+            if (block.getRelative(BlockFace.UP).getType().isTransparent())
+                targetedBlock = block.getLocation().clone().add(0, 2, 1);
+
+            new TempFallingBlock(block.getLocation().clone().add(0.5, 0.0, 0.5), material, data, new Vector(0, 0.8, 0), this);
+
+            TempBlock tb = new TempBlock(block, Material.AIR, (byte) 0);
+            tblockTracker.add(tb);
+
+        }
+    }
+
+    @SuppressWarnings("deprecation")
+    public Material getCorrectType(Block block)
+    {
+        if (block.getType().equals(Material.SAND))
+        {
+            if (block.getData() == (byte) 0x1)
+            {
+                return Material.RED_SANDSTONE;
+            }
+
+            return Material.SANDSTONE;
+        }
+
+        if (block.getType().equals(Material.GRAVEL))
+        {
+            return Material.COBBLESTONE;
+        }
+
+        return block.getType();
+    }
+
+    @SuppressWarnings("deprecation")
+    public void progress()
+    {
+        if (player == null || !player.isOnline() || player.isDead())
+        {
+            remove();
+            return;
+        }
+
+        if (!isThrown)
+        {
+            if (!bPlayer.canBendIgnoreCooldowns(this))
+            {
+                remove();
+                return;
+            }
+
+            if (tblockTracker.isEmpty())
+            {
+                remove();
+                return;
+            }
+
+            for (TempFallingBlock tfb : TempFallingBlock.getFromAbility(this))
+            {
+                FallingBlock fb = tfb.getFallingBlock();
+
+                if (fb.isDead() || fb.getLocation().getBlockY() == targetedBlock.getBlockY())
+                {
+                    TempBlock tb = new TempBlock(fb.getLocation().getBlock(), fb.getMaterial(), fb.getBlockData());
+                    readyBlocksTracker.add(tb);
+                    tfb.remove();
+                }
+            }
+        } else
+        {
+            for (TempFallingBlock tfb : TempFallingBlock.getFromAbility(this))
+            {
+                FallingBlock fb = tfb.getFallingBlock();
+
+                AABB collider = BlockUtil.getFallingBlockBoundsFull(fb).scale(entityCollisionRadius * 2.0);
+
+                CollisionDetector.checkEntityCollisions(player, collider, (e) ->
+                {
+                    DamageHandler.damageEntity(e, isMetal(fb.getMaterial()) ? metalDmg : normalDmg, this);
+                    ((LivingEntity) e).setNoDamageTicks(0);
+                    ParticleEffect.BLOCK_CRACK.display(new ParticleEffect.BlockData(fb.getMaterial(), fb.getBlockData()), 0, 0, 0, 0, 20, fb.getLocation(), 20);
+                    tfb.remove();
+                    return false;
+                });
+
+                if (fb.isDead())
+                {
+                    tfb.remove();
+                }
+            }
+
+            if (TempFallingBlock.getFromAbility(this).isEmpty())
+            {
+                remove();
+            }
+        }
+    }
+
+    public static void throwShard(Player player)
+    {
+        if (hasAbility(player, EarthShardMasterDeluxeEditon.class))
+        {
+            for (EarthShardMasterDeluxeEditon es : EarthShardMasterDeluxeEditon.getAbilities(player, EarthShardMasterDeluxeEditon.class))
+            {
+                if (!es.isThrown)
+                {
+                    es.throwShard();
+                    break;
+                }
+            }
+        }
+    }
+
+    @SuppressWarnings("deprecation")
+    public void throwShard()
+    {
+        if (isThrown)
+        {
+            return;
+        }
+
+        Location targetLocation = VersionUtil.getTargetedLocation(player, abilityRange);
+
+        if (GeneralMethods.getTargetedEntity(player, abilityRange, new ArrayList<>()) != null)
+        {
+            targetLocation = GeneralMethods.getTargetedEntity(player, abilityRange, new ArrayList<>()).getLocation();
+        }
+
+        Vector vel = null;
+
+        for (TempBlock tb : readyBlocksTracker)
+        {
+            Location target = player.getTargetBlock(null, 30).getLocation();
+
+            if (target.getBlockX() == tb.getBlock().getX() && target.getBlockY() == tb.getBlock().getY() && target.getBlockZ() == tb.getBlock().getZ())
+            {
+                vel = player.getEyeLocation().getDirection().multiply(2).add(new Vector(0, 0.2, 0));
+                break;
+            }
+
+            vel = GeneralMethods.getDirection(tb.getLocation(), targetLocation).normalize().multiply(2).add(new Vector(0, 0.2, 0));
+        }
+
+        for (TempBlock tb : readyBlocksTracker)
+        {
+            fallingBlocks.add(new TempFallingBlock(tb.getLocation(), tb.getBlock().getType(), tb.getBlock().getData(), vel, this));
+            tb.revertBlock();
+        }
+
+        Bukkit.getScheduler().runTaskLater(JedCore.plugin, this::revertBlocks, 1);
+
+        isThrown = true;
+
+        if (player.isOnline())
+        {
+            bPlayer.addCooldown(this);
+        }
+    }
+
+    public void revertBlocks()
+    {
+        for (TempBlock tb : tblockTracker)
+        {
+            tb.revertBlock();
+            if (tb.getLocation().getChunk().isLoaded())
+                tb.getLocation().getWorld().refreshChunk(tb.getLocation().getChunk().getX(), tb.getLocation().getChunk().getZ());
+        }
+
+        for (TempBlock tb : readyBlocksTracker)
+        {
+            tb.revertBlock();
+            if (tb.getLocation().getChunk().isLoaded())
+                tb.getLocation().getWorld().refreshChunk(tb.getLocation().getChunk().getX(), tb.getLocation().getChunk().getZ());
+        }
+
+        tblockTracker.clear();
+        readyBlocksTracker.clear();
+    }
+
+    @Override
+    public void remove()
+    {
+        // Destroy any remaining falling blocks.
+        for (TempFallingBlock tfb : TempFallingBlock.getFromAbility(this))
+        {
+            tfb.remove();
+        }
+
+        revertBlocks();
+
+        super.remove();
+    }
+
+    @Override
+    public long getCooldown()
+    {
+        return cooldown;
+    }
+
+    @Override
+    public Location getLocation()
+    {
+        return null;
+    }
+
+    @Override
+    public List<Location> getLocations()
+    {
+        return fallingBlocks.stream().map(TempFallingBlock::getLocation).collect(Collectors.toList());
+    }
+
+    @Override
+    public void handleCollision(Collision collision)
+    {
+        CollisionUtil.handleFallingBlockCollisions(collision, fallingBlocks);
+    }
+
+    @Override
+    public double getCollisionRadius()
+    {
+        return abilityCollisionRadius;
+    }
+
+    @Override
+    public String getName()
+    {
+        return "EarthShardMasterDeluxeEditon";
+    }
+
+    @Override
+    public boolean isHarmlessAbility()
+    {
+        return false;
+    }
+
+    @Override
+    public boolean isSneakAbility()
+    {
+        return true;
+    }
+
+    @Override
+    public String getAuthor()
+    {
+        return JedCore.dev;
+    }
+
+    @Override
+    public String getVersion()
+    {
+        return JedCore.version;
+    }
+
+    @Override
+    public String getDescription()
+    {
+        ConfigurationSection config = JedCoreConfig.getConfig(this.player);
+        return "* JedCore Addon *\n" + config.getString("Abilities.Earth.EarthShard.Description");
+    }
+
+    @Override
+    public void load()
+    {
+
+    }
+
+    @Override
+    public void stop()
+    {
+
+    }
+
+    @Override
+    public boolean isEnabled()
+    {
+        ConfigurationSection config = JedCoreConfig.getConfig(this.player);
+        return config.getBoolean("Abilities.Earth.EarthShard.Enabled");
+    }
+}

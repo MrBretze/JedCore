@@ -1,14 +1,14 @@
 package com.jedk1.jedcore;
 
-import java.util.*;
-
+import com.jedk1.jedcore.configuration.JedCoreConfig;
+import com.jedk1.jedcore.scoreboard.BendingBoard;
 import com.jedk1.jedcore.util.*;
-import org.bukkit.Bukkit;
-import org.bukkit.ChatColor;
-import org.bukkit.Effect;
-import org.bukkit.Location;
-import org.bukkit.Material;
-import org.bukkit.World;
+import com.projectkorra.projectkorra.GeneralMethods;
+import com.projectkorra.projectkorra.ProjectKorra;
+import com.projectkorra.projectkorra.ability.CoreAbility;
+import com.projectkorra.projectkorra.ability.util.ComboManager;
+import com.projectkorra.projectkorra.util.TempBlock;
+import org.bukkit.*;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
 import org.bukkit.entity.Player;
@@ -16,13 +16,7 @@ import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.util.Vector;
 
-import com.jedk1.jedcore.configuration.JedCoreConfig;
-import com.jedk1.jedcore.scoreboard.BendingBoard;
-import com.projectkorra.projectkorra.GeneralMethods;
-import com.projectkorra.projectkorra.ProjectKorra;
-import com.projectkorra.projectkorra.ability.CoreAbility;
-import com.projectkorra.projectkorra.ability.util.ComboManager;
-import com.projectkorra.projectkorra.util.TempBlock;
+import java.util.*;
 
 public class JCMethods {
 
@@ -60,8 +54,8 @@ public class JCMethods {
 
 	/**
 	 * Gets the points of a line between two points.
-	 * @param start
-	 * @param end
+	 * @param startLoc
+	 * @param endLoc
 	 * @param points
 	 * @return locations
 	 */

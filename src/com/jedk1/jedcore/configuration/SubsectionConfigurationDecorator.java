@@ -14,6 +14,7 @@ import java.util.Set;
 // ConfigurationSection decorator that tries to fetch with a prefix prepended to the path.
 // If that section doesn't exist, then it falls back to the parent.
 public class SubsectionConfigurationDecorator implements ConfigurationSection {
+
     private ConfigurationSection parent;
     private String prefix;
 
