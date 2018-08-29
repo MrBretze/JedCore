@@ -302,7 +302,24 @@ public class JedCoreConfig {
 				+ "surface to create pillar of earth in the direction of the block face!");
 		config.addDefault("Abilities.Earth.EarthPillar.Height", 6);
 		config.addDefault("Abilities.Earth.EarthPillar.Range", 10);
-		
+
+		config.addDefault("Abilities.Earth.EarthShardMasterDeluxeEditon.Enabled", true);
+		config.addDefault("Abilities.Earth.EarthShardMasterDeluxeEditon.Description", "EarthShardMasterDeluxeEditon is a variation of EarthBlast "
+				+ "which the earthbender may use to hit a target. This "
+				+ "ability deals a fair amount of damage and is easy to "
+				+ "rapid-fire. To use, simply shift at an earthbendable block, "
+				+ "and it will ascend to your eye height. Then, click towards your "
+				+ "target and the block will launch itself towards it.");
+		config.addDefault("Abilities.Earth.EarthShardMasterDeluxeEditon.Cooldown", 1000);
+		config.addDefault("Abilities.Earth.EarthShardMasterDeluxeEditon.Damage.Normal", 1.0);
+		config.addDefault("Abilities.Earth.EarthShardMasterDeluxeEditon.Damage.Metal", 1.5);
+		config.addDefault("Abilities.Earth.EarthShardMasterDeluxeEditon.PrepareRange", 5);
+		config.addDefault("Abilities.Earth.EarthShardMasterDeluxeEditon.AbilityRange", 30);
+		config.addDefault("Abilities.Earth.EarthShardMasterDeluxeEditon.MaxShards", 3);
+		config.addDefault("Abilities.Earth.EarthShardMasterDeluxeEditon.AbilityCollisionRadius", 2.0);
+		config.addDefault("Abilities.Earth.EarthShardMasterDeluxeEditon.EntityCollisionRadius", 1.4);
+		config.addDefault("Abilities.Earth.EarthShardMasterDeluxeEditon.UpInTheSky", 0.3D);
+
 		config.addDefault("Abilities.Earth.EarthShard.Enabled", true);
 		config.addDefault("Abilities.Earth.EarthShard.Description", "EarthShard is a variation of EarthBlast "
 				+ "which the earthbender may use to hit a target. This "
