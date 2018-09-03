@@ -4,6 +4,12 @@ version: ${project.version}
 authors: ['jedk1']
 depend: ['ProjectKorra']
 
+commands:
+  fireblast:
+    description: Fireblast
+  fbtest:
+    description: Fireblast test command
+
 permissions:
   #OP permissions
   jedcore.admin:

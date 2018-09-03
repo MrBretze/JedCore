@@ -43,9 +43,13 @@ public class EarthShardMasterDeluxeEditon extends EarthAbility implements AddonA
     public static int maxShards;
     public static long cooldown;
 
-    private boolean isOld = false;
     private boolean isThrown = false;
     private List<Location> selectedBlock = new ArrayList<>();
+
+    private HashMap<Location, BackupBlock> selectedBackup = new HashMap<>();
+    private int fallingHeight;
+    private int fallingDuration;
+
     private double abilityCollisionRadius;
     private double entityCollisionRadius;
 
@@ -94,6 +98,8 @@ public class EarthShardMasterDeluxeEditon extends EarthAbility implements AddonA
 
         range = config.getInt("Abilities.Earth.EarthShardMasterDeluxeEditon.PrepareRange");
         upInTheSky = config.getDouble("Abilities.Earth.EarthShardMasterDeluxeEditon.UpInTheSky");
+        fallingHeight = config.getInt("Abilities.Earth.EarthShardMasterDeluxeEditon.fallingHeight");
+        fallingDuration = config.getInt("Abilities.Earth.EarthShardMasterDeluxeEditon.fallingDuration");
         abilityRange = config.getInt("Abilities.Earth.EarthShardMasterDeluxeEditon.AbilityRange");
         normalDmg = config.getDouble("Abilities.Earth.EarthShardMasterDeluxeEditon.Damage.Normal");
         metalDmg = config.getDouble("Abilities.Earth.EarthShardMasterDeluxeEditon.Damage.Metal");
@@ -117,6 +123,7 @@ public class EarthShardMasterDeluxeEditon extends EarthAbility implements AddonA
         }
 
         selectedBlock.add(block.getLocation());
+        selectedBackup.put(block.getLocation(), new BackupBlock(block));
 
         if (tbBlockTracker.size() >= maxShards)
         {
@@ -174,12 +181,10 @@ public class EarthShardMasterDeluxeEditon extends EarthAbility implements AddonA
                     }
                 }
 
-                isOld = true;
-
-                new TempFallingBlock(block.getLocation().clone().add(0.5, 0.0, 0.5), material, data, new Vector(0, 0.8, 0), this);
+                new TempFallingBlock(block.getLocation().clone().add(0.5, 0, 0.5), material, data, new Vector(0, 0.8, 0), this);
             } else
             {
-                for (int y = 1; y < 20; y++)
+                for (int y = 1; y < fallingHeight; y++)
                 {
                     if (block.getRelative(0, y, 0).getType().isTransparent())
                         break;
@@ -192,6 +197,7 @@ public class EarthShardMasterDeluxeEditon extends EarthAbility implements AddonA
 
                 new TempFallingBlock(block.getLocation().clone().add(0.5, 0.0, 0.5), material, data, new Vector(0, 0.1, 0), this);
             }
+
             tbBlockTracker.put(block, new BackupBlock(block));
             block.setType(Material.AIR);
             block.setData((byte) 0);
@@ -219,7 +225,6 @@ public class EarthShardMasterDeluxeEditon extends EarthAbility implements AddonA
         return block.getType();
     }
 
-    @SuppressWarnings("deprecation")
     public void progress()
     {
         if (player == null || !player.isOnline() || player.isDead())
@@ -276,28 +281,16 @@ public class EarthShardMasterDeluxeEditon extends EarthAbility implements AddonA
                     return false;
                 });
 
-                if (fb.getVelocity().getY() < 0)
+                if (fb.getVelocity().getY() < 0.09)
                 {
-                    for (Location selections : selectedBlock)
-                    {
-                        int minus = isOld ? 2 : 0;
-
-                        selections = new Location(selections.getWorld(), selections.getBlockX(), selections.getBlockY() - minus, selections.getBlockZ());
-
-                        if (selections.getBlockX() == fb.getLocation().getBlockX() && selections.getBlockZ() == fb.getLocation().getBlockZ() && selections.getBlockY() == fb.getLocation().getBlockY())
+                    Location location = fb.getLocation();
+                    for (Location loc : selectedBackup.keySet())
+                        if (loc.getBlockX() == location.getBlockX() && loc.getBlockY() == location.getBlockY() && loc.getBlockZ() == location.getBlockZ())
                         {
-                            BackupBlock bkb = tbBlockTracker.get(selections.getBlock());
-                            if (bkb != null)
-                            {
-                                selections.getBlock().setType(bkb.getType());
-                                selections.getBlock().setData(bkb.getData());
-                            } else
-                            {
-                                selections.getBlock().setType(fb.getMaterial());
-                                selections.getBlock().setData(fb.getBlockData());
-                            }
+                            BackupBlock backupBlock = selectedBackup.get(loc);
+                            loc.getBlock().setType(backupBlock.getType());
+                            loc.getBlock().setData(backupBlock.getData());
                         }
-                    }
                 }
 
                 if (fb.isDead())
@@ -328,7 +321,6 @@ public class EarthShardMasterDeluxeEditon extends EarthAbility implements AddonA
         }
     }
 
-    @SuppressWarnings("deprecation")
     public void throwShard()
     {
         if (isThrown)
@@ -361,7 +353,7 @@ public class EarthShardMasterDeluxeEditon extends EarthAbility implements AddonA
         for (Block tb : readyBlocksTracker)
         {
             TempFallingBlock block;
-            fallingBlocks.add(block = new TempFallingBlock(tb.getLocation(), tb.getType(), tb.getData(), vel, this));
+            fallingBlocks.add(block = new TempFallingBlock(tb.getLocation().add(0.5, 0, 0.5), tb.getType(), tb.getData(), vel, this));
 
             Bukkit.getScheduler().runTaskLater(JedCore.plugin, () ->
             {
@@ -375,20 +367,32 @@ public class EarthShardMasterDeluxeEditon extends EarthAbility implements AddonA
 
         List<Location> locs = new ArrayList<>(blockToDrop.keySet());
 
-        locs.sort((o1, o2) ->
-                o1.getBlockY() > o2.getBlockY() ? 1 : -1);
+        locs.sort(Comparator.comparingInt(Location::getBlockY));
 
-        System.out.println();
+        int i = 0;
 
         for (Location location : locs)
         {
-            System.out.println(location.toString());
+            i++;
             World world = location.getWorld();
             Block block = location.getBlock();
             BackupBlock backupBlock = blockToDrop.get(location);
             block.setType(Material.AIR);
             block.setData((byte) 0);
             world.spawnFallingBlock(location.add(0.5, 0, 0.5), backupBlock.getMaterialData());
+
+            int finalI = i;
+
+            if (fallingDuration > 0)
+            {
+
+                Bukkit.getScheduler().runTaskLater(JedCore.plugin, () ->
+                {
+                    if (finalI <= selectedBackup.keySet().size())
+                        ParticleEffect.BLOCK_CRACK.display(new ParticleEffect.BlockData(backupBlock.getType(), backupBlock.getData()), 0.2F, 0.0F, 0.2F, 0, 20, block.getLocation().add(0.5, -0.5, 0.5), 20);
+
+                }, fallingDuration);
+            }
         }
 
         revertBlocks();
@@ -403,12 +407,6 @@ public class EarthShardMasterDeluxeEditon extends EarthAbility implements AddonA
 
     public void revertBlocks()
     {
-        /*for (Block b : tbBlockTracker.keySet())
-        {
-            b.setType(Material.AIR);
-            b.setData((byte) 0);
-        }*/
-
         for (Block b : readyBlocksTracker)
         {
             b.setType(Material.AIR);
@@ -510,6 +508,14 @@ public class EarthShardMasterDeluxeEditon extends EarthAbility implements AddonA
     public void stop()
     {
 
+    }
+
+    public boolean isOld(Location location)
+    {
+        for (Location loc : selectedBlock)
+            if (loc.getBlockX() == location.getBlockX() && loc.getBlockY() == location.getBlockY() && loc.getBlockZ() == location.getBlockZ())
+                return loc.getBlock().getRelative(0, 1, 0).getType().isTransparent() && loc.getBlock().getRelative(0, 2, 0).getType().isTransparent();
+        return false;
     }
 
     @Override

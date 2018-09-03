@@ -319,6 +319,8 @@ public class JedCoreConfig {
 		config.addDefault("Abilities.Earth.EarthShardMasterDeluxeEditon.AbilityCollisionRadius", 2.0);
 		config.addDefault("Abilities.Earth.EarthShardMasterDeluxeEditon.EntityCollisionRadius", 1.4);
 		config.addDefault("Abilities.Earth.EarthShardMasterDeluxeEditon.UpInTheSky", 0.3D);
+		config.addDefault("Abilities.Earth.EarthShardMasterDeluxeEditon.fallingHeight", 20);
+		config.addDefault("Abilities.Earth.EarthShardMasterDeluxeEditon.fallingDuration", 8);
 
 		config.addDefault("Abilities.Earth.EarthShard.Enabled", true);
 		config.addDefault("Abilities.Earth.EarthShard.Description", "EarthShard is a variation of EarthBlast "
