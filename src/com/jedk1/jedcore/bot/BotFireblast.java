@@ -1,27 +1,24 @@
-package com.jedk1.jedcore.command;
+package com.jedk1.jedcore.bot;
 
 import com.projectkorra.projectkorra.util.ParticleEffect;
 import org.bukkit.Location;
 import org.bukkit.Material;
-import org.bukkit.entity.ArmorStand;
-import org.bukkit.entity.Entity;
-import org.bukkit.entity.EntityType;
-import org.bukkit.entity.Player;
+import org.bukkit.entity.*;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.util.Vector;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.NoSuchElementException;
 import java.util.UUID;
 
-public class Fireblast
+public class BotFireblast
 {
 
     private static int distance = 28;
 
     public static void firebast(Location player, UUID shooter)
     {
-
         Location shootStart = player.clone();
         Location playerEyes = player.clone();
         Vector direction = playerEyes.getDirection();
@@ -87,6 +84,11 @@ public class Fireblast
                             players.add((Player) e);
                         else if (e instanceof ArmorStand)
                             stands.add((ArmorStand) e);
+                        else if (e instanceof Zombie)
+                        {
+                            e.setVelocity(knock);
+                            ((Zombie) e).damage(3D);
+                        }
                     }
 
                     if (stands.size() > 0)
@@ -132,6 +134,15 @@ public class Fireblast
 
                     Thread.currentThread().stop();
                     return;
+                }
+
+                if (stand[0].isDead())
+                {
+                    stand[0].remove();
+                    new ParticleEffect.ParticlePacket(ParticleEffect.FLAME, 0.5F, 0.5F, 0.5F, 0.2F, 70, true, null).sendTo(stand[0].getLocation(), 200D);
+                    new ParticleEffect.ParticlePacket(ParticleEffect.SMOKE, 0.2F, 0.2F, 0.2F, 0.1F, 100, true, null).sendTo(stand[0].getLocation(), 200D);
+                    Thread.currentThread().stop();
+                    Thread.currentThread().stop();
                 }
 
                 if (distanceToStart >= distance)
@@ -182,23 +193,27 @@ public class Fireblast
     {
         ArrayList<Entity> entities = new ArrayList<>();
 
-        for (Entity nearbyEnity : location.getWorld().getNearbyEntities(location, 0.5, 0.7, 0.5))
+        try
         {
-            if (!nearbyEnity.getUniqueId().toString().equalsIgnoreCase(shooter.toString()) && !nearbyEnity.getUniqueId().toString().equalsIgnoreCase(shootingArmor.getUniqueId().toString()))
+            for (Entity nearbyEnity : location.getWorld().getNearbyEntities(location, 0.5, 0.7, 0.5))
             {
-                if (nearbyEnity instanceof ArmorStand)
+                if (!nearbyEnity.getUniqueId().toString().equalsIgnoreCase(shooter.toString()) && !nearbyEnity.getUniqueId().toString().equalsIgnoreCase(shootingArmor.getUniqueId().toString()))
                 {
-                    ArmorStand stand = (ArmorStand) nearbyEnity;
-                    if (!stand.getCustomName().equalsIgnoreCase("JedCodePluginArmorStandPasTouche"))
-                        continue;
+                    if (nearbyEnity instanceof ArmorStand)
+                    {
+                        ArmorStand stand = (ArmorStand) nearbyEnity;
+                        if (!stand.getCustomName().equalsIgnoreCase("JedCodePluginArmorStandPasTouche"))
+                            continue;
 
-                    entities.add(stand);
-                } else if (nearbyEnity instanceof Player)
-                {
-                    entities.add(nearbyEnity);
+                        entities.add(stand);
+                    } else if (nearbyEnity instanceof Player)
+                    {
+                        entities.add(nearbyEnity);
+                    }
                 }
             }
-        }
+        } catch (NoSuchElementException e)
+        {}
 
         return entities;
     }

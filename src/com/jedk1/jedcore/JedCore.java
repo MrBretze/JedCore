@@ -1,8 +1,8 @@
 package com.jedk1.jedcore;
 
 import com.google.common.reflect.ClassPath;
+import com.jedk1.jedcore.bot.BotFireblast;
 import com.jedk1.jedcore.command.Commands;
-import com.jedk1.jedcore.command.Fireblast;
 import com.jedk1.jedcore.configuration.JedCoreConfig;
 import com.jedk1.jedcore.listener.AbilityListener;
 import com.jedk1.jedcore.listener.CommandListener;
@@ -10,26 +10,41 @@ import com.jedk1.jedcore.listener.JCListener;
 import com.jedk1.jedcore.scoreboard.BendingBoard;
 import com.jedk1.jedcore.task.CustomTask;
 import com.jedk1.jedcore.util.*;
+import com.mojang.authlib.GameProfile;
+import com.mojang.authlib.properties.Property;
 import com.projectkorra.projectkorra.ability.CoreAbility;
-import org.bukkit.*;
+import net.minecraft.server.v1_12_R1.*;
+import org.bukkit.Bukkit;
+import org.bukkit.Location;
+import org.bukkit.World;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
-import org.bukkit.entity.ArmorStand;
-import org.bukkit.entity.EntityType;
+import org.bukkit.craftbukkit.v1_12_R1.CraftServer;
+import org.bukkit.craftbukkit.v1_12_R1.CraftWorld;
+import org.bukkit.craftbukkit.v1_12_R1.entity.CraftPlayer;
 import org.bukkit.entity.Player;
-import org.bukkit.inventory.ItemStack;
+import org.bukkit.event.EventHandler;
+import org.bukkit.event.EventPriority;
+import org.bukkit.event.Listener;
+import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitRunnable;
+import org.json.simple.JSONArray;
+import org.json.simple.JSONObject;
+import org.json.simple.parser.JSONParser;
+import org.json.simple.parser.ParseException;
 
 import java.io.IOException;
+import java.io.InputStreamReader;
+import java.net.HttpURLConnection;
+import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import java.util.logging.Logger;
 
-public class JedCore extends JavaPlugin
+public class JedCore extends JavaPlugin implements Listener
 {
-
     public static JedCore plugin;
     public static Logger log;
     public static String dev;
@@ -45,6 +60,9 @@ public class JedCore extends JavaPlugin
             getServer().getPluginManager().disablePlugin(this);
             return;
         }
+
+
+        Bukkit.getPluginManager().registerEvents(this, this);
 
         plugin = this;
         JedCore.log = this.getLogger();
@@ -156,14 +174,14 @@ public class JedCore extends JavaPlugin
         return major >= 8;
     }
 
-    private List<ArmorStand> standShootingList = new ArrayList<>();
+    private List<EntityPlayer> zombieShootingList = new ArrayList<>();
 
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args)
     {
         if (label.equalsIgnoreCase("fireblast") && sender instanceof Player)
         {
-            Fireblast.firebast((Player) sender);
+            BotFireblast.firebast((Player) sender);
             return true;
         }
 
@@ -173,39 +191,71 @@ public class JedCore extends JavaPlugin
             {
                 if (args[0].equalsIgnoreCase("stop"))
                 {
-                    for (ArmorStand stand : standShootingList)
-                        stand.remove();
+                    for (EntityPlayer zombie : zombieShootingList)
+                        zombie.die();
 
                     return true;
                 }
             }
 
             Location featLoc = ((Player) sender).getLocation();
-            ArmorStand stand = (ArmorStand) ((Player) sender).getWorld().spawnEntity(featLoc, EntityType.ARMOR_STAND);
-            stand.setCustomName("JE TIRE TOUT LES 5SEC");
-            stand.setCustomNameVisible(true);
-            stand.setInvulnerable(true);
-            stand.setGravity(true);
-            stand.setItemInHand(new ItemStack(Material.FISHING_ROD));
-            stand.setVisible(true);
+            featLoc.setPitch(((Player) sender).getEyeLocation().getPitch());
+            featLoc.setYaw(((Player) sender).getEyeLocation().getYaw());
 
-            standShootingList.add(stand);
+            MinecraftServer nmsServer = ((CraftServer) Bukkit.getServer()).getServer();
+            WorldServer nmsWorld = ((CraftWorld) featLoc.getWorld()).getHandle();
 
-            new CustomTask(this, 20, 5 * 20)
+            GameProfile profile = new GameProfile(UUID.randomUUID(), "Fireblast Bot");
+
+            if (zombieShootingList.size() > 0)
             {
+                profile.getProperties().put("textures", zombieShootingList.get(0).getProfile().getProperties().get("textures").iterator().next());
+            } else
+            {
+
+                try
+                {
+                    HttpURLConnection connection = (HttpURLConnection) new URL("https://sessionserver.mojang.com/session/minecraft/profile/d8a23d7ba11448bb954496fed44243eb?unsigned=false").openConnection();
+
+                    JSONArray response = (JSONArray) ((JSONObject) new JSONParser().parse(new InputStreamReader(connection.getInputStream()))).get("properties");
+                    JSONObject a = (JSONObject) response.get(0);
+
+                    profile.getProperties().put("textures", new Property((String) a.get("name"), (String) a.get("value"), (String) a.get("signature")));
+
+
+                } catch (IOException | ParseException e)
+                {
+                    e.printStackTrace();
+                }
+            }
+
+            EntityPlayer human = new EntityPlayer(nmsServer, nmsWorld, profile,
+                    new PlayerInteractManager(nmsWorld));
+
+            Bukkit.getScheduler().runTaskLater(this, () ->
+            {
+                human.setLocation(featLoc.getX(), featLoc.getY(), featLoc.getZ(), featLoc.getYaw(), featLoc.getPitch());
+                human.setHeadRotation(featLoc.getYaw());
+                human.world.entityJoinedWorld(human, false);
+                for (Player p : Bukkit.getOnlinePlayers())
+                    show(p, human);
+
+            }, 10);
+
+            zombieShootingList.add(human);
+
+            new CustomTask(this, 20, 50)
+            {
+
                 @Override
                 public void run()
                 {
-                    if (stand.isDead())
-                    {
-                        cancel();
-                        return;
-                    }
+                    int onLinePlayer = Bukkit.getOnlinePlayers().size();
 
-                    Location location = stand.getEyeLocation();
-                    UUID shooter = stand.getUniqueId();
-                    Bukkit.broadcastMessage(ChatColor.DARK_RED + "FIRE !");
-                    Fireblast.firebast(location.clone(), shooter);
+                    if (onLinePlayer > 0)
+                    {
+                        BotFireblast.firebast(featLoc.clone().add(0.0D, 1.5D, 0.0D).clone(), human.getUniqueID());
+                    }
                 }
             };
             return true;
@@ -213,10 +263,28 @@ public class JedCore extends JavaPlugin
         return false;
     }
 
+    public void show(Player target, EntityPlayer entity)
+    {
+        PlayerConnection connection = ((CraftPlayer) target).getHandle().playerConnection;
+        connection.sendPacket(new PacketPlayOutPlayerInfo(PacketPlayOutPlayerInfo.EnumPlayerInfoAction.ADD_PLAYER, entity));
+        connection.sendPacket(new PacketPlayOutNamedEntitySpawn(entity));
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR)
+    public void onPlayerJoin(PlayerJoinEvent event)
+    {
+        for (EntityPlayer player : zombieShootingList)
+            show(event.getPlayer(), player);
+    }
+
     public void onDisable()
     {
-        for (ArmorStand stand : standShootingList)
-            stand.remove();
+        for (EntityPlayer zombie : zombieShootingList)
+        {
+            zombie.die();
+        }
+
+        zombieShootingList.clear();
 
         RegenTempBlock.revertAll();
         TempFallingBlock.removeAllFallingBlocks();
